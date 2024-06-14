@@ -36,6 +36,10 @@ class TransformerModel(nn.Module):
         decoder_norm = LayerNorm(d_model)
         self.transformer_decoder = TransformerDecoder(decoder_layers, num_decoder_layers, decoder_norm)
 
+        # Distribution Loss
+        self.kl_func = nn.KLDivLoss(reduction="batchmean")
+        self.kl_loss = 0.0
+
         self.init_weights()
 
     def init_weights(self) -> None:
@@ -57,6 +61,7 @@ class TransformerModel(nn.Module):
         memory = self.transformer_encoder(src)
         mu = self.encoder_mu(memory)
         ln_var = self.encoder_ln_var(memory)
+        self.kl_loss = self.kl_func(mu, ln_var)
         return mu, ln_var
 
     def decode(self, tgt: Tensor, z: float) -> Tensor:
