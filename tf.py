@@ -65,11 +65,10 @@ class TransformerModel(nn.Module):
             raise RuntimeError("the feature number of src and tgt must be equal to d_signal")
 
         mu, _ = self.encode(src)
-        print(f"mu:{mu.size()}")
         output = self.decode(tgt, mu)
         return output
 
-    def encode(self, src: Tensor) -> Tensor:
+    def encode(self, src: Tensor) -> tuple[Tensor, Tensor]:
         emb = self.input_converter(src)
         memory = self.transformer_encoder(emb)
         mu = self.encoder_mu(memory)
@@ -79,12 +78,11 @@ class TransformerModel(nn.Module):
 
     def decode(self, tgt: Tensor, z: Tensor) -> Tensor:
         memory = self.decoder_z(z)
-        print(f"memory:{memory.size()}")
         emb = self.transformer_decoder(tgt, memory)
         output = self.output_converter(emb)
         return output
 
-    def generate(self, z: float, max_len: int) -> Tensor:
+    def generate(self, z: Tensor, max_len: int) -> Tensor:
         tgt = torch.zeros((self.d_signal, max_len, self.d_signal), device=self.device)
         tgt[:, 0, :] = self.decoder_z(z)
         for t in range(1, max_len):
@@ -95,13 +93,14 @@ class TransformerModel(nn.Module):
 
 
 if __name__ == "__main__":
-    model = TransformerModel(10, 512, 8, 6, 6, 2048, 64)
-    src = torch.rand((10, 32, 10))
-    tgt = torch.rand((10, 32, 10))
-    print(f"src:{src.size()}")
-    output = model(src, tgt)
-    print(f"output:{output.size()}")
-    print(f"kl_loss:{model.kl_loss}")
-    z = torch.rand((64, 64))
-    output = model.generate(z, 64)
-    print(f"output:{output.size()}")
+    decoder_layer = nn.TransformerDecoderLayer(d_model=512, nhead=8)
+    transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=6)
+    memory = torch.rand(10, 32, 512)
+    tgt = torch.rand(20, 32, 512)
+    out = transformer_decoder(tgt, memory)  # model = TransformerModel(16, 512, 8, 6, 6, 2048, 64)
+
+    # src = torch.rand((10, 32, 16))
+    # tgt = torch.rand((20, 32, 16))
+    # output = model(src, tgt)
+    # print(f"output:{output.size()}")
+    # print(f"kl_loss:{model.kl_loss}")
