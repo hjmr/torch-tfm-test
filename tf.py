@@ -32,25 +32,25 @@ class TransformerModel(nn.Module):
         self.device = device
 
         # Encoder
-        self.input_converter = nn.Linear(d_input, d_embed)
+        self.input_converter = nn.Linear(d_input, d_embed, device=device)
         encoder_layers = TransformerEncoderLayer(
             d_embed, nhead, dim_feedforward, dropout, batch_first=batch_first, device=device
         )
-        encoder_norm = LayerNorm(d_embed)
+        encoder_norm = LayerNorm(d_embed, device=device)
         self.transformer_encoder = TransformerEncoder(encoder_layers, num_encoder_layers, encoder_norm)
-        self.encoder_mu = nn.Linear(d_embed, d_latent)
-        self.encoder_ln_var = nn.Linear(d_embed, d_latent)
+        self.encoder_mu = nn.Linear(d_embed, d_latent, device=device)
+        self.encoder_ln_var = nn.Linear(d_embed, d_latent, device=device)
         self.soft_plus = nn.Softplus()
 
         # Decoder
-        self.decoder_z = nn.Linear(d_latent, d_embed)
-        self.target_converter = nn.Linear(d_output, d_embed)
+        self.decoder_z = nn.Linear(d_latent, d_embed, device=device)
+        self.target_converter = nn.Linear(d_output, d_embed, device=device)
         decoder_layers = TransformerDecoderLayer(
             d_embed, nhead, dim_feedforward, dropout, batch_first=batch_first, device=device
         )
-        decoder_norm = LayerNorm(d_embed)
+        decoder_norm = LayerNorm(d_embed, device=device)
         self.transformer_decoder = TransformerDecoder(decoder_layers, num_decoder_layers, decoder_norm)
-        self.output_converter = nn.Linear(d_embed, d_output)
+        self.output_converter = nn.Linear(d_embed, d_output, device=device)
 
         # Distribution Loss
         self.kl_func = kl.kl_divergence
@@ -60,16 +60,16 @@ class TransformerModel(nn.Module):
 
     def init_weights(self) -> None:
         initrange = 0.1
-        self.input_converter.bias.data.zero_()
-        self.input_converter.weight.data.uniform_(-initrange, initrange)
-        self.encoder_mu.bias.data.zero_()
-        self.encoder_mu.weight.data.uniform_(-initrange, initrange)
-        self.encoder_ln_var.bias.data.zero_()
-        self.encoder_ln_var.weight.data.uniform_(-initrange, initrange)
-        self.target_converter.bias.data.zero_()
-        self.target_converter.weight.data.uniform_(-initrange, initrange)
-        self.output_converter.bias.data.zero_()
-        self.output_converter.weight.data.uniform_(-initrange, initrange)
+        self.input_converter.bias.data.zero_().to(self.device)
+        self.input_converter.weight.data.uniform_(-initrange, initrange).to(self.device)
+        self.encoder_mu.bias.data.zero_().to(self.device)
+        self.encoder_mu.weight.data.uniform_(-initrange, initrange).to(self.device)
+        self.encoder_ln_var.bias.data.zero_().to(self.device)
+        self.encoder_ln_var.weight.data.uniform_(-initrange, initrange).to(self.device)
+        self.target_converter.bias.data.zero_().to(self.device)
+        self.target_converter.weight.data.uniform_(-initrange, initrange).to(self.device)
+        self.output_converter.bias.data.zero_().to(self.device)
+        self.output_converter.weight.data.uniform_(-initrange, initrange).to(self.device)
 
     def forward(self, src: Tensor, tgt: Tensor) -> Tensor:
         is_batched = src.dim() == 3
@@ -95,7 +95,9 @@ class TransformerModel(nn.Module):
         scale_tril = torch.diag_embed(scale)
         dist = MultivariateNormal(mu, scale_tril=scale_tril)
         z = dist.rsample()
-        std_normal = MultivariateNormal(torch.zeros_like(z), scale_tril=torch.eye(z.size(-1)))
+        std_normal = MultivariateNormal(
+            torch.zeros_like(z, device=self.device), scale_tril=torch.eye(z.size(-1), device=self.device)
+        )
 
         self.kl_loss = self.kl_func(dist, std_normal).mean()
         return dist
@@ -120,6 +122,7 @@ class TransformerModel(nn.Module):
 
 
 if __name__ == "__main__":
+    device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
     model = TransformerModel(
         d_input=4,
         d_output=4,
@@ -130,14 +133,15 @@ if __name__ == "__main__":
         num_decoder_layers=6,
         dim_feedforward=512,
         batch_first=True,
+        device=device,
     )
-    src = torch.randn((32, 10, 4))
-    tgt = torch.randn((32, 10, 4))
+    src = torch.randn((32, 10, 4), device=device)
+    tgt = torch.randn((32, 10, 4), device=device)
     output = model(src, tgt)
     print(output.size())
     print(model.kl_loss)
 
-    z = torch.randn((1, 10, 32))
+    z = torch.randn((1, 10, 32), device=device)
     max_len = 10
     output = model.generate(z, max_len)
     print(output.size())

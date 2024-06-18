@@ -1,8 +1,13 @@
-from tf import TransformerModel
-
 import torch
 from torch.optim import Adam
 from torch.nn import MSELoss
+
+from tf import TransformerModel
+
+device = torch.device("cpu")
+if torch.backends.mps.is_available():
+    device = torch.device("mps")
+print(f"device:{device}")
 
 model = TransformerModel(
     d_input=1,
@@ -14,15 +19,16 @@ model = TransformerModel(
     num_decoder_layers=6,
     dim_feedforward=2048,
     batch_first=True,
+    device=device,
 )
 optimizer = Adam(model.parameters(), lr=0.001)
 rec_loss = MSELoss()
 
-sin_data = torch.sin(torch.arange(0, 100, 0.1)).unsqueeze(-1)
-cos_data = torch.cos(torch.arange(0, 100, 0.1)).unsqueeze(-1)
+sin_data = torch.sin(torch.arange(0, 100, 0.1)).unsqueeze(-1).to(device)
+cos_data = torch.cos(torch.arange(0, 100, 0.1)).unsqueeze(-1).to(device)
 
 model.train(True)
-for epoch in range(1000):
+for epoch in range(100):
     optimizer.zero_grad()
     output = model(sin_data, cos_data)
     loss = rec_loss(output, cos_data)
@@ -31,7 +37,7 @@ for epoch in range(1000):
     optimizer.step()
     print(f"epoch:{epoch}, loss:{loss.item()}, kl_loss:{model.kl_loss.item()}")
 
-z = torch.randn((1, 10, 16))
+z = torch.randn((1, 1, 16), device=device)
 max_len = 100
 output = model.generate(z, max_len)
 for y in output:
