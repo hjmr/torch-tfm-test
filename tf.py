@@ -53,7 +53,6 @@ class TransformerModel(nn.Module):
         self.output_converter = nn.Linear(d_embed, d_output)
 
         # Distribution Loss
-        # self.kl_func = nn.KLDivLoss(reduction="batchmean")
         self.kl_func = kl.kl_divergence
         self.kl_loss = 0.0
 
@@ -109,29 +108,37 @@ class TransformerModel(nn.Module):
         return output
 
     def generate(self, z: Tensor, max_len: int) -> Tensor:
-        tgt = torch.zeros((self.d_output, max_len, self.d_output), device=self.device)
-        tgt[:, 0, :] = self.decoder_z(z)
-        for t in range(1, max_len):
-            output = self.transformer_decoder(tgt[:, :t, :], tgt[:, : t - 1, :])
-            output = self.output_converter(output)
-            tgt[:, t, :] = output[:, -1, :]
-        return tgt
+        if self.batch_first:
+            tgt = torch.zeros((1, max_len, self.d_output), device=self.device)
+        else:
+            tgt = torch.zeros((max_len, 1, self.d_output), device=self.device)
+        emb = self.target_converter(tgt)
+        memory = self.decoder_z(z)
+        output = self.transformer_decoder(emb, memory)
+        output = self.output_converter(output)
+        return output
 
 
 if __name__ == "__main__":
     model = TransformerModel(
-        d_input=16,
-        d_output=24,
+        d_input=4,
+        d_output=4,
         d_embed=16,
-        d_latent=16,
+        d_latent=32,
         nhead=8,
         num_encoder_layers=6,
         num_decoder_layers=6,
-        dim_feedforward=2048,
+        dim_feedforward=512,
         batch_first=True,
     )
-    src = torch.rand((32, 10, 16))
-    tgt = torch.rand((32, 20, 24))
+    src = torch.randn((32, 10, 4))
+    tgt = torch.randn((32, 10, 4))
     output = model(src, tgt)
-    print(f"output:{output.size()}")
-    print(f"kl_loss:{model.kl_loss}")
+    print(output.size())
+    print(model.kl_loss)
+
+    z = torch.randn((1, 10, 32))
+    max_len = 10
+    output = model.generate(z, max_len)
+    print(output.size())
+    print(output)
