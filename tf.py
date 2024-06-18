@@ -94,9 +94,9 @@ class TransformerModel(nn.Module):
 
         scale = self.soft_plus(ln_var) + eps
         scale_tril = torch.diag_embed(scale)
-        dist = MultivariateNormal(mu, scale_tril)
+        dist = MultivariateNormal(mu, scale_tril=scale_tril)
         z = dist.rsample()
-        std_normal = MultivariateNormal(torch.zeros_like(z), torch.eye(z.size(-1)))
+        std_normal = MultivariateNormal(torch.zeros_like(z), scale_tril=torch.eye(z.size(-1)))
 
         self.kl_loss = self.kl_func(dist, std_normal).mean()
         return dist
