@@ -63,7 +63,7 @@ def train(model, data_loader, optimizer, rec_loss_func, prev_updates=0):
     return prev_updates + len(train_loader)
 
 
-num_epochs = 100
+num_epochs = 20
 
 prev_updates = 0
 for epoch in range(num_epochs):
