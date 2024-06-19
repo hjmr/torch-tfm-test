@@ -1,5 +1,5 @@
 import torch
-from tf import VariationalTransformer
+from vtf import VariationalTransformer
 
 device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
 print(f"device:{device}")
