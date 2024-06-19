@@ -4,9 +4,7 @@ from torch.nn import MSELoss
 
 from tf import TransformerModel
 
-device = torch.device("cpu")
-if torch.backends.mps.is_available():
-    device = torch.device("mps")
+device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
 print(f"device:{device}")
 
 model = TransformerModel(

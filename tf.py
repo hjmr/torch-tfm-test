@@ -123,6 +123,7 @@ class TransformerModel(nn.Module):
 
 if __name__ == "__main__":
     device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
+    print(f"device:{device}")
     model = TransformerModel(
         d_input=4,
         d_output=4,
