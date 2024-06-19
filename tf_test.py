@@ -2,12 +2,12 @@ import torch
 from torch.optim import Adam
 from torch.nn import MSELoss
 
-from tf import TransformerModel
+from tf import VariationalTransformer
 
 device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
 print(f"device:{device}")
 
-model = TransformerModel(
+model = VariationalTransformer(
     d_input=1,
     d_output=1,
     d_embed=8,
@@ -35,6 +35,9 @@ for epoch in range(100):
     optimizer.step()
     print(f"epoch:{epoch}, loss:{loss.item()}, kl_loss:{model.kl_loss.item()}")
 
+torch.save(model.state_dict(), "tf_test.pth")
+
+model.train(False)
 z = torch.randn((1, 1, 16), device=device)
 max_len = 100
 output = model.generate(z, max_len)
