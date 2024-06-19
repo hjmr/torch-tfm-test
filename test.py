@@ -2,7 +2,7 @@ import torch
 from torch.optim import Adam
 from torch.nn import MSELoss
 
-from tf import VariationalTransformer
+from vtf import VariationalTransformer
 
 device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
 print(f"device:{device}")
