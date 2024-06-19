@@ -1,7 +1,4 @@
-from datetime import datetime
-from tqdm import tqdm
 import torch
-from torch.utils.tensorboard import SummaryWriter
 from torchvision import datasets
 from torchvision.transforms import v2
 
@@ -40,13 +37,12 @@ model = VariationalTransformer(
 )
 optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-2)
 rec_loss_func = torch.nn.MSELoss()
-writer = SummaryWriter(f'runs/mnist/vtf_{datetime.now().strftime("%Y%m%d-%H%M%S")}')
 
 
-def train(model, data_loader, optimizer, rec_loss_func, writer, prev_updates=0):
+def train(model, data_loader, optimizer, rec_loss_func, prev_updates=0):
     model.train(True)
 
-    for batch_idx, (data, _) in enumerate(tqdm(train_loader)):
+    for batch_idx, (data, _) in enumerate(train_loader):
         n_upd = prev_updates + batch_idx
 
         data = data.to(device)
@@ -58,17 +54,12 @@ def train(model, data_loader, optimizer, rec_loss_func, writer, prev_updates=0):
         loss = rec_loss + model.kl_loss
         loss.backward()
 
-        if n_upd % 100 == 0:
-            print(
-                f"Step:{n_upd:,} (N samples: {n_upd * batch_size:,}) Loss: {loss.item():.4f} (Recon: {rec_loss.item():.4f}, KL:{model.kl_loss.item():.4f}"
-            )
-            writer.add_scalar("Loss/Train", loss.item(), n_upd)
-            writer.add_scalar("Loss/Train/Recon", rec_loss.item(), n_upd)
-            writer.add_scalar("Loss/Train/KL", model.kl_loss.item(), n_upd)
-
         # torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
         optimizer.step()
+
+        if n_upd % 100 == 0:
+            print(f"Step:{n_upd:,} (N samples: {n_upd * batch_size:,}) Loss: {loss.item():.4f} (Recon: {rec_loss.item():.4f}, KL:{model.kl_loss.item():.4f})")  # fmt: skip
     return prev_updates + len(train_loader)
 
 
@@ -77,4 +68,6 @@ num_epochs = 100
 prev_updates = 0
 for epoch in range(num_epochs):
     print(f"Epoch {epoch+1}/{num_epochs}")
-    prev_updates = train(model, train_loader, optimizer, rec_loss_func, writer, prev_updates)
+    prev_updates = train(model, train_loader, optimizer, rec_loss_func, prev_updates)
+
+torch.save(model.state_dict(), "vtf_mnist.pth")
