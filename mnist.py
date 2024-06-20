@@ -10,7 +10,7 @@ transform = v2.Compose(
     [
         v2.ToImage(),
         v2.ToDtype(torch.float32, scale=True),
-        v2.Lambda(lambda x: x.view(28, 28) - 0.5),
+        v2.Lambda(lambda x: x.view(1, -1) - 0.5),
     ]
 )
 
@@ -24,14 +24,14 @@ device = torch.device("mps") if torch.backends.mps.is_available() else torch.dev
 print(f"device:{device}")
 
 model = VariationalTransformer(
-    d_input=28,
-    d_output=28,
+    d_input=784,
+    d_output=784,
     d_embed=128,
     d_latent=2,
     nhead=8,
-    num_encoder_layers=6,
-    num_decoder_layers=6,
-    dim_feedforward=1024,
+    num_encoder_layers=2,
+    num_decoder_layers=2,
+    dim_feedforward=512,
     batch_first=True,
     device=device,
 )
@@ -54,7 +54,7 @@ def train(model, data_loader, optimizer, rec_loss_func, prev_updates=0):
         loss = rec_loss + model.kl_loss
         loss.backward()
 
-        # torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
         optimizer.step()
 

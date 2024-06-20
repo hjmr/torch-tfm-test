@@ -111,9 +111,9 @@ class VariationalTransformer(nn.Module):
 
     def generate(self, z: Tensor, max_len: int) -> Tensor:
         if self.batch_first:
-            tgt = torch.zeros((1, max_len, self.d_output), device=self.device)
+            tgt = torch.zeros((z.size()[0], max_len, self.d_output), device=self.device)
         else:
-            tgt = torch.zeros((max_len, 1, self.d_output), device=self.device)
+            tgt = torch.zeros((max_len, z.size()[1], self.d_output), device=self.device)
         emb = self.target_converter(tgt)
         memory = self.decoder_z(z)
         output = self.transformer_decoder(emb, memory)
