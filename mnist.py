@@ -10,7 +10,7 @@ transform = v2.Compose(
     [
         v2.ToImage(),
         v2.ToDtype(torch.float32, scale=True),
-        v2.Lambda(lambda x: x.view(1, -1) - 0.5),
+        v2.Lambda(lambda x: x.view(28, -1)),
     ]
 )
 
@@ -24,19 +24,20 @@ device = torch.device("mps") if torch.backends.mps.is_available() else torch.dev
 print(f"device:{device}")
 
 model = VariationalTransformer(
-    d_input=784,
-    d_output=784,
+    d_input=28,
+    d_output=28,
     d_embed=128,
     d_latent=2,
     nhead=8,
-    num_encoder_layers=2,
-    num_decoder_layers=2,
+    num_encoder_layers=3,
+    num_decoder_layers=3,
     dim_feedforward=512,
     batch_first=True,
     device=device,
 )
 optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-2)
-rec_loss_func = torch.nn.MSELoss()
+# rec_loss_func = torch.nn.MSELoss()
+rec_loss_func = torch.nn.BCELoss()
 
 
 def train(model, data_loader, optimizer, rec_loss_func, prev_updates=0):
@@ -46,15 +47,18 @@ def train(model, data_loader, optimizer, rec_loss_func, prev_updates=0):
         n_upd = prev_updates + batch_idx
 
         data = data.to(device)
-        target = data.clone()
+        y = data.clone()
+        y_input = y[:, :-1]
+        y_expected = y[:, 1:]
 
         optimizer.zero_grad()
-        output = model(data, target)
-        rec_loss = rec_loss_func(output, target)
+        output = model(data, y_input)
+        output = torch.sigmoid(output)
+        rec_loss = rec_loss_func(output, y_expected)
         loss = rec_loss + model.kl_loss
         loss.backward()
 
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
         optimizer.step()
 
@@ -63,7 +67,7 @@ def train(model, data_loader, optimizer, rec_loss_func, prev_updates=0):
     return prev_updates + len(train_loader)
 
 
-num_epochs = 20
+num_epochs = 50
 
 prev_updates = 0
 for epoch in range(num_epochs):
