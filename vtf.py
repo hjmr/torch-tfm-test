@@ -32,7 +32,7 @@ class VariationalTransformer(nn.Module):
         self.device = device
 
         # Encoder
-        self.input_converter = nn.Linear(d_input, d_embed, device=device)
+        self.input_embedding = nn.Linear(d_input, d_embed, device=device)
         encoder_layers = TransformerEncoderLayer(
             d_embed, nhead, dim_feedforward, dropout, batch_first=batch_first, device=device
         )
@@ -44,7 +44,7 @@ class VariationalTransformer(nn.Module):
 
         # Decoder
         self.decoder_z = nn.Linear(d_latent, d_embed, device=device)
-        self.target_converter = nn.Linear(d_output, d_embed, device=device)
+        self.target_embedding = nn.Linear(d_output, d_embed, device=device)
         decoder_layers = TransformerDecoderLayer(
             d_embed, nhead, dim_feedforward, dropout, batch_first=batch_first, device=device
         )
@@ -60,18 +60,18 @@ class VariationalTransformer(nn.Module):
 
     def init_weights(self) -> None:
         initrange = 0.1
-        self.input_converter.bias.data.zero_().to(self.device)
-        self.input_converter.weight.data.uniform_(-initrange, initrange).to(self.device)
+        self.input_embedding.bias.data.zero_().to(self.device)
+        self.input_embedding.weight.data.uniform_(-initrange, initrange).to(self.device)
         self.encoder_mu.bias.data.zero_().to(self.device)
         self.encoder_mu.weight.data.uniform_(-initrange, initrange).to(self.device)
         self.encoder_ln_var.bias.data.zero_().to(self.device)
         self.encoder_ln_var.weight.data.uniform_(-initrange, initrange).to(self.device)
-        self.target_converter.bias.data.zero_().to(self.device)
-        self.target_converter.weight.data.uniform_(-initrange, initrange).to(self.device)
+        self.target_embedding.bias.data.zero_().to(self.device)
+        self.target_embedding.weight.data.uniform_(-initrange, initrange).to(self.device)
         self.output_converter.bias.data.zero_().to(self.device)
         self.output_converter.weight.data.uniform_(-initrange, initrange).to(self.device)
 
-    def forward(self, src: Tensor, tgt: Tensor) -> Tensor:
+    def forward(self, src: Tensor, tgt: Tensor, tgt_mask: Tensor = None) -> Tensor:
         is_batched = src.dim() == 3
         if not self.batch_first and src.size(1) != tgt.size(1) and is_batched:
             raise RuntimeError("the batch number of src and tgt must be equal")
@@ -82,11 +82,11 @@ class VariationalTransformer(nn.Module):
             raise RuntimeError("the feature number of src and tgt must be equal to d_input and d_output")
 
         dist = self.encode(src)
-        output = self.decode(tgt, dist.rsample())
+        output = self.decode(tgt, dist.rsample(), tgt_mask=tgt_mask)
         return output
 
     def encode(self, src: Tensor, eps: float = 1e-8) -> MultivariateNormal:
-        emb = self.input_converter(src)
+        emb = self.input_embedding(src)
         memory = self.transformer_encoder(emb)
         mu = self.encoder_mu(memory)
         ln_var = self.encoder_ln_var(memory)
@@ -102,23 +102,28 @@ class VariationalTransformer(nn.Module):
         self.kl_loss = self.kl_func(dist, std_normal).mean()
         return dist
 
-    def decode(self, tgt: Tensor, z: Tensor) -> Tensor:
-        emb = self.target_converter(tgt)
+    def decode(self, tgt: Tensor, z: Tensor, tgt_mask: Tensor = None) -> Tensor:
+        emb = self.target_embedding(tgt)
         memory = self.decoder_z(z)
-        output = self.transformer_decoder(emb, memory)
+        output = self.transformer_decoder(emb, memory, tgt_mask=tgt_mask)
         output = self.output_converter(output)
         return output
 
-    def generate(self, z: Tensor, max_len: int) -> Tensor:
-        if self.batch_first:
-            tgt = torch.zeros((z.size()[0], max_len, self.d_output), device=self.device)
-        else:
-            tgt = torch.zeros((max_len, z.size()[1], self.d_output), device=self.device)
-        emb = self.target_converter(tgt)
-        memory = self.decoder_z(z)
-        output = self.transformer_decoder(emb, memory)
-        output = self.output_converter(output)
-        return output
+    def get_tgt_mask(self, size: int) -> Tensor:
+        # Generates a squeare matrix where the each row allows one word more to be seen
+        mask = torch.tril(torch.ones(size, size) == 1)  # Lower triangular matrix
+        mask = mask.float()
+        mask = mask.masked_fill(mask == 0, float("-inf"))  # Convert zeros to -inf
+        mask = mask.masked_fill(mask == 1, float(0.0))  # Convert ones to 0
+
+        # EX for size=5:
+        # [[0., -inf, -inf, -inf, -inf],
+        #  [0.,   0., -inf, -inf, -inf],
+        #  [0.,   0.,   0., -inf, -inf],
+        #  [0.,   0.,   0.,   0., -inf],
+        #  [0.,   0.,   0.,   0.,   0.]]
+
+        return mask
 
 
 if __name__ == "__main__":
