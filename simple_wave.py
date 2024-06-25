@@ -24,15 +24,17 @@ print(f"device:{device}")
 sin_data = torch.sin(torch.arange(0, 12, 0.05)).unsqueeze(-1).to(device)
 cos_data = torch.cos(torch.arange(0, 12, 0.05)).unsqueeze(-1).to(device)
 
-input, target = generate_data(sin_data, cos_data, 1000)
+wave_data = torch.cat([sin_data, cos_data], dim=0)
+
+input, target = generate_data(wave_data, wave_data, 2000)
 dataset = torch.utils.data.TensorDataset(input, target)
-train_loader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True)
+train_loader = torch.utils.data.DataLoader(dataset, batch_size=100, shuffle=True)
 
 model = create_model(device)
 optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-2)
 rec_loss_func = torch.nn.MSELoss()
 
-epoch_num = 300
+epoch_num = 500
 
 model.train(True)
 for epoch in range(epoch_num):
