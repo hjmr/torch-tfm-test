@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 from simple_wave_model import create_model
 
 
-def generate(model, z, max_len):
+def generate(model, start_y, z, max_len):
     model.train(False)
 
-    y_input = torch.zeros((z.size(0), 1, model.d_output), device=device)
+    y_input = start_y.clone()
     for _ in range(max_len):
         tgt_mask = model.get_tgt_mask(y_input.size(1)).to(device)
         gen = model.decode(y_input, z, tgt_mask)
@@ -25,17 +25,25 @@ print(f"device:{device}")
 model = create_model(device)
 model.load_state_dict(torch.load("wave_test.pth"))
 
-n = 16
+m = 10
+n = 10
 max_len = 100
 
 z1 = torch.linspace(-1, 1, n)
 z2 = torch.zeros_like(z1) + 2
 z = torch.stack([z1, z2], dim=1).view(n, -1, 2).to(device)
-output = generate(model, z, max_len)
 
-fig, axs = plt.subplots(1, n, figsize=(n, 1))
+y = torch.linspace(-1, 1, m)
+
+output = []
+for i in range(m):
+    start_y = torch.zeros(n, 1, 1).fill_(y[i]).to(device)
+    output.append(generate(model, start_y, z, max_len))
+
+fig, axs = plt.subplots(m, n, figsize=(m, n))
 x = np.arange(0, max_len + 1, 1)
-for i in range(n):
-    axs[i].plot(x, output[i].view(-1).detach().cpu().numpy(), color="blue")
+for i in range(m):
+    for j in range(n):
+        axs[i, j].plot(x, output[i][j].view(-1).detach().cpu().numpy(), color="blue")
 
 plt.show()

@@ -21,8 +21,8 @@ def generate_data(source, target, num, length=50):
 device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
 print(f"device:{device}")
 
-sin_data = torch.sin(torch.arange(0, 12, 0.01)).unsqueeze(-1).to(device)
-cos_data = torch.cos(torch.arange(0, 12, 0.01)).unsqueeze(-1).to(device)
+sin_data = torch.sin(torch.arange(0, 12, 0.05)).unsqueeze(-1).to(device)
+cos_data = torch.cos(torch.arange(0, 12, 0.05)).unsqueeze(-1).to(device)
 
 input, target = generate_data(sin_data, cos_data, 1000)
 dataset = torch.utils.data.TensorDataset(input, target)
@@ -32,7 +32,7 @@ model = create_model(device)
 optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-2)
 rec_loss_func = torch.nn.MSELoss()
 
-epoch_num = 100
+epoch_num = 300
 
 model.train(True)
 for epoch in range(epoch_num):
