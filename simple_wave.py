@@ -1,6 +1,7 @@
 import random
 import numpy as np
 import torch
+from scipy import signal
 
 from simple_wave_model import create_model
 
@@ -22,19 +23,21 @@ device = torch.device("mps") if torch.backends.mps.is_available() else torch.dev
 print(f"device:{device}")
 
 sin_data = torch.sin(torch.arange(0, 12, 0.05)).unsqueeze(-1).to(device)
-cos_data = torch.cos(torch.arange(0, 12, 0.05)).unsqueeze(-1).to(device)
+square_data = torch.tensor(signal.square(torch.arange(0, 12, 0.05)), dtype=torch.float32).unsqueeze(-1).to(device)
+sawtooth_data = torch.tensor(signal.sawtooth(torch.arange(0, 12, 0.05)), dtype=torch.float32).unsqueeze(-1).to(device)
 
 sin_inp, sin_tgt = generate_data(sin_data, sin_data, 1000)
-cos_inp, cos_tgt = generate_data(cos_data, cos_data, 1000)
+squ_inp, squ_tgt = generate_data(square_data, square_data, 1000)
+saw_inp, saw_tgt = generate_data(sawtooth_data, sawtooth_data, 1000)
 
-input = torch.cat([sin_inp, cos_inp], dim=0)
-target = torch.cat([sin_tgt, cos_tgt], dim=0)
+input = torch.cat([sin_inp, squ_inp, saw_inp], dim=0)
+target = torch.cat([sin_tgt, squ_tgt, saw_tgt], dim=0)
 
 dataset = torch.utils.data.TensorDataset(input, target)
 train_loader = torch.utils.data.DataLoader(dataset, batch_size=100, shuffle=True)
 
 model = create_model(device)
-optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-2)
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-3)
 rec_loss_func = torch.nn.MSELoss()
 
 epoch_num = 500
