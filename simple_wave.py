@@ -24,9 +24,12 @@ print(f"device:{device}")
 sin_data = torch.sin(torch.arange(0, 12, 0.05)).unsqueeze(-1).to(device)
 cos_data = torch.cos(torch.arange(0, 12, 0.05)).unsqueeze(-1).to(device)
 
-wave_data = torch.cat([sin_data, cos_data], dim=0)
+sin_inp, sin_tgt = generate_data(sin_data, sin_data, 1000)
+cos_inp, cos_tgt = generate_data(cos_data, cos_data, 1000)
 
-input, target = generate_data(wave_data, wave_data, 2000)
+input = torch.cat([sin_inp, cos_inp], dim=0)
+target = torch.cat([sin_tgt, cos_tgt], dim=0)
+
 dataset = torch.utils.data.TensorDataset(input, target)
 train_loader = torch.utils.data.DataLoader(dataset, batch_size=100, shuffle=True)
 
