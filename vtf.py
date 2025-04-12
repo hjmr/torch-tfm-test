@@ -6,6 +6,37 @@ from torch.nn import LayerNorm
 from torch.distributions import kl, MultivariateNormal
 
 
+class PositionalEncoder(nn.Module):
+    def __init__(self, d_model: int, dropout_p: float = 0.1, max_len: int = 5000):
+        super().__init__()
+        # Modified version from: https://pytorch.org/tutorials/beginner/transformer_tutorial.html
+        # max_len determines how far the position can have an effect on a token (window)
+
+        # Info
+        self.dropout = nn.Dropout(dropout_p)
+
+        # Encoding - From formula
+        pos_encoding = torch.zeros(max_len, d_model)
+        positions_list = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)  # 0, 1, 2, 3, 4, 5
+
+        # 1000^(2i/d_model)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-torch.log(torch.tensor(10000.0))) / d_model)
+
+        # PE(pos, 2i) = sin(pos/1000^(2i/d_model))
+        pos_encoding[:, 0::2] = torch.sin(positions_list * div_term)
+
+        # PE(pos, 2i + 1) = cos(pos/1000^(2i/dim_model))
+        pos_encoding[:, 1::2] = torch.cos(positions_list * div_term)
+
+        # Saving buffer (same as parameter without gradients needed)
+        pos_encoding = pos_encoding.unsqueeze(0).transpose(0, 1)
+        self.register_buffer("pos_encoding", pos_encoding)
+
+    def forward(self, x: Tensor) -> Tensor:
+        # Residual connection + pos encoding
+        return self.dropout(x + self.pos_encoding[: x.size(0), :])
+
+
 class VariationalTransformer(nn.Module):
 
     def __init__(
@@ -30,6 +61,9 @@ class VariationalTransformer(nn.Module):
         self.nhead = nhead
         self.batch_first = batch_first
         self.device = device
+
+        # Positional Encoder
+        self.pos_encoder = PositionalEncoder(d_embed, dropout_p=dropout, max_len=5000)
 
         # Encoder
         self.input_embedding = nn.Linear(d_input, d_embed, device=device)
@@ -87,6 +121,7 @@ class VariationalTransformer(nn.Module):
 
     def encode(self, src: Tensor, eps: float = 1e-8) -> MultivariateNormal:
         emb = self.input_embedding(src)
+        emb = self.pos_encoder(emb)
         memory = self.transformer_encoder(emb)
         mu = self.encoder_mu(memory)
         ln_var = self.encoder_ln_var(memory)
@@ -104,6 +139,7 @@ class VariationalTransformer(nn.Module):
 
     def decode(self, tgt: Tensor, z: Tensor, tgt_mask: Tensor = None) -> Tensor:
         emb = self.target_embedding(tgt)
+        emb = self.pos_encoder(emb)
         memory = self.decoder_z(z)
         output = self.transformer_decoder(emb, memory, tgt_mask=tgt_mask)
         output = self.output_converter(output)
