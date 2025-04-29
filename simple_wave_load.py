@@ -12,25 +12,11 @@ def parse_args():
     return parser.parse_args()
 
 
-def generate(model, start_y, z, max_len, device: torch.device):
-    model.train(False)
-
-    y_input = start_y.clone()
-    for _ in range(max_len):
-        tgt_mask = model.get_tgt_mask(y_input.size(1)).to(device)
-        gen = model.decode(y_input, z, tgt_mask)
-        gen = torch.tanh(gen)
-
-        next_item = gen[:, -1:]
-        y_input = torch.cat([y_input, next_item], dim=1)
-
-    return y_input
-
-
 def main(model_file: str, device: torch.device):
 
     model = create_model(device)
     model.load_state_dict(torch.load(model_file, map_location=device, weights_only=True))
+    model.train(False)
 
     m = 10
     n = 10
@@ -45,7 +31,7 @@ def main(model_file: str, device: torch.device):
     output = []
     for i in range(m):
         start_y = torch.zeros(n, 1, 1).fill_(y[i]).to(device)
-        output.append(generate(model, start_y, z, max_len, device))
+        output.append(model.generate(start_y, z, max_len, device))
 
     fig, axs = plt.subplots(m, n, tight_layout=True, figsize=(m, n))
     x = np.arange(0, max_len + 1, 1)

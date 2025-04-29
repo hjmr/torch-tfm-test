@@ -7,20 +7,23 @@ from torch.distributions import kl, MultivariateNormal
 
 
 class PositionalEncoder(nn.Module):
-    def __init__(self, d_model: int, dropout_p: float = 0.1, max_len: int = 5000):
+    def __init__(self, d_model: int, dropout_p: float = 0.5, max_len: int = 5000, device: str = "cpu"):
         super().__init__()
         # Modified version from: https://pytorch.org/tutorials/beginner/transformer_tutorial.html
         # max_len determines how far the position can have an effect on a token (window)
 
         # Info
-        self.dropout = nn.Dropout(dropout_p)
+        self.dropout = nn.Dropout(dropout_p).to(device)
+        self.device = device
 
         # Encoding - From formula
-        pos_encoding = torch.zeros(max_len, d_model)
-        positions_list = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)  # 0, 1, 2, 3, 4, 5
+        pos_encoding = torch.zeros(max_len, d_model, device=device)
+        positions_list = torch.arange(0, max_len, dtype=torch.float, device=device).unsqueeze(1)  # 0, 1, 2, 3, 4, 5
 
         # 1000^(2i/d_model)
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-torch.log(torch.tensor(10000.0))) / d_model)
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2, device=device).float() * (-torch.log(torch.tensor(10000.0))) / d_model
+        )
 
         # PE(pos, 2i) = sin(pos/1000^(2i/d_model))
         pos_encoding[:, 0::2] = torch.sin(positions_list * div_term)
@@ -51,7 +54,7 @@ class VariationalTransformer(nn.Module):
         dim_feedforward: int,
         dropout: float = 0.5,
         batch_first: bool = False,
-        device: str = "cpu",
+        device: torch.device = torch.device("cpu"),
     ):
         super().__init__()
         self.model_type = "Transformer"
@@ -63,7 +66,7 @@ class VariationalTransformer(nn.Module):
         self.device = device
 
         # Positional Encoder
-        self.pos_encoder = PositionalEncoder(d_embed, dropout_p=dropout, max_len=5000)
+        self.pos_encoder = PositionalEncoder(d_embed, dropout_p=dropout, max_len=5000, device=device)
 
         # Encoder
         self.input_embedding = nn.Linear(d_input, d_embed, device=device)
@@ -145,6 +148,17 @@ class VariationalTransformer(nn.Module):
         output = self.output_converter(output)
         return output
 
+    def generate(self, start_y: Tensor, z: Tensor, max_len: int) -> Tensor:
+        y_input = start_y.clone()
+        for _ in range(max_len):
+            tgt_mask = self.get_tgt_mask(y_input.size(1)).to(self.device)
+            gen = self.decode(y_input, z, tgt_mask)
+            gen = torch.tanh(gen)
+
+            next_item = gen[:, -1:]
+            y_input = torch.cat([y_input, next_item], dim=1)
+        return y_input
+
     def get_tgt_mask(self, size: int) -> Tensor:
         # Generates a squeare matrix where the each row allows one word more to be seen
         mask = torch.tril(torch.ones(size, size) == 1)  # Lower triangular matrix
@@ -179,12 +193,15 @@ if __name__ == "__main__":
     )
     src = torch.randn((32, 10, 4), device=device)
     tgt = torch.randn((32, 10, 4), device=device)
+    print("Target:", tgt)
     output = model(src, tgt)
-    print(output.size())
-    print(model.kl_loss)
+    print("Output Size:", output.size())
+    print("KL loss:", model.kl_loss)
 
+    start_y = torch.randn((1, 1, 4), device=device)
     z = torch.randn((1, 10, 32), device=device)
     max_len = 10
-    output = model.generate(z, max_len)
-    print(output.size())
-    print(output)
+    print("Start_Y Size:", start_y.size())
+    output = model.generate(start_y, z, max_len)
+    print("Gen Output Size:", output.size())
+    print("Output:", output)
