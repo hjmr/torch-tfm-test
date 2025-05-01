@@ -31,7 +31,7 @@ def main(model_file: str, device: torch.device):
     output = []
     for i in range(m):
         start_y = torch.zeros(n, 1, 1).fill_(y[i]).to(device)
-        output.append(model.generate(start_y, z, max_len, device))
+        output.append(model.generate(start_y, z, max_len))
 
     fig, axs = plt.subplots(m, n, tight_layout=True, figsize=(m, n))
     x = np.arange(0, max_len + 1, 1)
